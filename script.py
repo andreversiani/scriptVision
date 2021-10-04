@@ -13,6 +13,7 @@ def makeGroup(contratos):
     for group in groups:
       comando = f'dsadd group "cn={contrato.numero} - {group}, ou={contrato.numero} - {contrato.nomeConcessionaria}, ou={contrato[0].numero} - {contrato[-1].numero}, ou=01 - Contratos, ou=Operacional (Contratos), ou=Grupos de Permissao, ou=VISION OU, dc=visionsistemas, dc=com, dc=br"'
       os.system(comando)
+      print(f'Grupo criado: {contrato.numero} - {group}')
 
 #cria as instancias de contratos em determinado range. Exemplo: 1000 - 1099
 def makeContratos(range1, range2):
@@ -25,6 +26,8 @@ def makeContratos(range1, range2):
       contrato  = Contrato(numeroContrato, nomeConcessionaria)
       if int(numeroContrato) >= range1 and int(numeroContrato) <= range2:
         contratos.append(contrato)
+        print(f'Contrato gerado: {contrato.numero} - {contrato.nomeConcessionaria}')
+      
   return contratos
 
 
@@ -44,9 +47,11 @@ def grantPermissions(range1, range2):
     for i in range(len(newGroups)):
       comando  = f'cmd /c "icacls {folderpath} /inheritance:e /grant:r "{contrato.numero} - {newGroups[i]}:(OI)(CI)M"'
       os.system(comando)
+      print(f'Permissão Garantida: {contrato.numero} - {newGroups[i]}')
     for j in range(len(existingGroups)):
       comando = f'cmd /c "icacls {folderpath} /inheritance:e /grant:r "{existingGroups[j]}:(OI)(CI)M"'
       os.system(comando)
+      print(f'Permissão Garantida: {contrato.numero} - {existingGroups[j]}')
 
 def contratoValidator(contrato):
   if re.fullmatch('[0-9]{4} - [A-zÀ-ÿ]*', contrato):
