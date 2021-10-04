@@ -1,0 +1,213 @@
+#Include <default_settings>
+#Include <useful_functions>
+#Persistent
+
+; ============= GUI carregando=================;
+dotCount := 2
+userOU =
+userVE =
+
+Gui PW:Add, Text, x11 y23 w240 h40 vTxt_Wait +Center, Aguarde
+Gui PW:-border
+; ============= GUI carregando=================;
+
+; ============= GUI =================;
+Gui Add, Text, x12 y9 w180 h20 +Right, Nome Completo do Contrato:
+;~ Gui Add, Text, x12 y39 w190 h20 +Right, Membros (Opcional`, separar com "`,"):
+Gui Add, Edit, x212 y9 w220 h20 vContract_Name, 
+;~ Gui Add, Edit, x212 y39 w220 h60 vUser_List, 
+Gui Add, Button, x230 y109 w120 h30 gBtn_CreateFolder, Criar Pasta de Contrato
+Gui Show, w587 h167, Criar Pasta de Contrato
+return
+;==================================;
+
+
+Btn_CreateFolder:
+Gui Submit, NoHide
+Gui Cancel
+
+;~ ================ Tela carregando ====================
+Gui AU:Cancel
+Gui PW:Show, w250 h71
+
+SetTimer Please_Wait, 1000
+
+;~ ================ FIM Tela carregando =================
+
+
+User_List := RegExReplace(User_List, "\s+", "")
+
+if !RegExMatch(Contract_Name, "^\d+\s\-\s\w+")
+{
+	MsgBox Erro: nome inválido de contrato
+	
+	return
+}
+
+RegExMatch(Contract_Name, "^\d{2}", contPref) ; contPref = 2 primeiros dígitos do número do contrato
+RegExMatch(Contract_Name, "^\d{4}", contNum) ; contNum = Número do contrato
+RegExMatch(Contract_Name, "^\d+\s\-\s\w+", groupName) ; groupName = Nome do contrato
+
+defaultDir := "\\vision-fs\VISION_DADOS\Operacional\01 Contratos"
+defaultFolder := defaultDir "\XXXX - Contrato - Default Folder"
+ouFolder := contPref "00 - " contPref "99"
+folderName := Contract_Name
+ouFullPath := "ou=" groupName ", ou=" ouFolder ", ou=01 - Contratos, ou=Operacional (Contratos), ou=Grupos de Permissao, ou=VISION OU, dc=visionsistemas, dc=com, dc=br"
+copyFolder := "robocopy """ defaultFolder """ """ defaultDir "\" folderName """ /e /sec /eta"
+groupArr := [contNum " - EP", contNum " - CT", contNum " - Gerente", "Coordenador Engenharia", "Coordenador Obras"]
+createGroupArr := []
+setPermitArr := []
+denyPermitArr := []
+
+; Executando o comando robocopy para copiar pasta padrao em contratos
+RunWait *RunAs %comspec% /c %copyFolder%,, hide
+
+; Criando pasta de contrato na OU
+Run_With_Prompt("dsadd ou """ ouFullPath """")
+
+; Criando grupo na pasta de contrato da OU
+for k, theGroup in groupArr
+{
+	if !InStr(theGroup, "Coordenador")
+		createGroupArr[k] := "dsadd group ""cn=" theGroup ", " ouFullPath """ -secgrp yes -scope l"
+}
+
+
+createGroupArr[createGroupArr.MaxIndex()+1] := "dsadd group ""cn=" contNum " - Obra, " ouFullPath """ -secgrp yes -scope l"
+
+Run_With_Prompt(createGroupArr)
+
+; Concedendo permissão dos grupos à pasta de contrato (exceto obras e VEP)
+for k, theGroup in groupArr
+	setPermitArr[k] := "icacls """ defaultDir "\" folderName """ /grant ""visionsistemas\" theGroup ":(OI)(CI)M"""
+
+Run_With_Prompt(setPermitArr)
+
+; Negando permissão na pasta 1/5 para EP, CT 
+for k, theGroup in groupArr
+{
+	if theGroup = EP || theGroup = CT
+		denyPermitArr[k] := "icacls """ defaultDir "\" folderName "\1 - Desenvolvimento\5 - Mobilização"" /deny ""visionsistemas\" theGroup ":(OI)(CI)M"""
+}
+
+Run_With_Prompt(denyPermitArr)
+
+; Negando permissão na pasta 2 para EP, CT, Coordenador Engenharia e Coordenador Obras
+for k, theGroup in groupArr
+{
+	if theGroup != Gerente
+		denyPermitArr[k] := "icacls """ defaultDir "\" folderName "\2 - Gerenciamento"" /deny ""visionsistemas\" theGroup ":(OI)(CI)M"""
+}
+
+Run_With_Prompt(denyPermitArr)
+
+; Alterar EP para leitura na pasta 5
+theGroup := "visionsistemas\" contNum " - EP"
+theDir := "5 - Planejamento e Controle"
+Disable_Inheritance := "icacls """ defaultDir "\" folderName "\" theDir """ /inheritance:d"
+Remove_Group := "icacls """ defaultDir "\" folderName "\" theDir """ /remove """ theGroup """"
+Set_Read_Permission := "icacls """ defaultDir "\" folderName "\" theDir """ /grant """ theGroup ":(OI)(CI)RX"""
+
+Run_With_Prompt([Disable_Inheritance, Remove_Group, Set_Read_Permission])
+
+; Alterar EP para escrita na pasta 5/5
+theGroup := "visionsistemas\" contNum " - EP"
+theDir := "5 - Planejamento e Controle\5 - Plano de Comunicação"
+Disable_Inheritance := "icacls """ defaultDir "\" folderName "\" theDir """ /inheritance:d"
+Remove_Group := "icacls """ defaultDir "\" folderName "\" theDir """ /remove """ theGroup """"
+Set_Write_Permission := "icacls """ defaultDir "\" folderName "\" theDir """ /grant """ theGroup ":(OI)(CI)M"""
+
+Run_With_Prompt([Disable_Inheritance, Remove_Group, Set_Write_Permission])
+
+; Alterar CT para leitura nas pastas 5/1 e 5/2
+groupArr := ["visionsistemas\" contNum " - CT", "visionsistemas\" contNum " - Coordenador Obras"]
+theDir := "5 - Planejamento e Controle\1 - Internação Técnica"
+Disable_Inheritance := "icacls """ defaultDir "\" folderName "\" theDir """ /inheritance:d"
+removeGroupArr := []
+setReadPermArr := []
+
+for k, theGroup in groupArr
+{
+	removeGroupArr[k] := "icacls """ defaultDir "\" folderName "\" theDir """ /remove """ theGroup """"
+	setReadPermArr[k] := "icacls """ defaultDir "\" folderName "\" theDir """ /grant """ theGroup ":(OI)(CI)RX"""
+}
+
+Run_With_Prompt([Disable_Inheritance, removeGroupArr, setReadPermArr])
+
+theDir := "5 - Planejamento e Controle\2 - EAP"
+Disable_Inheritance := "icacls """ defaultDir "\" folderName "\" theDir """ /inheritance:d"
+removeGroupArr := []
+setReadPermArr := []
+
+for k, theGroup in groupArr
+{
+	removeGroupArr[k] := "icacls """ defaultDir "\" folderName "\" theDir """ /remove """ theGroup """"
+	setReadPermArr[k] := "icacls """ defaultDir "\" folderName "\" theDir """ /grant """ theGroup ":(OI)(CI)RX"""
+}
+
+Run_With_Prompt([Disable_Inheritance, removeGroupArr, setReadPermArr])
+
+; Adicionar Gerente como escrita nas pastas 6/2 e 6/3
+theGroup := "visionsistemas\" contNum " - Gerente"
+theDir := "6 - Suprimentos\2 - Cotações"
+Set_Write_Permission := "icacls """ defaultDir "\" folderName "\" theDir """ /grant """ theGroup ":(OI)(CI)M"""
+
+Run_With_Prompt(Set_Write_Permission)
+
+theDir := "6 - Suprimentos\3 - Pedidos de Compras"
+Set_Write_Permission := "icacls """ defaultDir "\" folderName "\" theDir """ /grant """ theGroup ":(OI)(CI)M"""
+
+Run_With_Prompt(Set_Write_Permission)
+
+; Adicionar Obra como escrita na pasta 6/3/3
+theGroup := "visionsistemas\" contNum " - Obra"
+theDir := "6 - Suprimentos\3 - Pedidos de Compras\3 Obra"
+Set_Write_Permission := "icacls """ defaultDir "\" folderName "\" theDir """ /grant """ theGroup ":(OI)(CI)M"""
+
+Run_With_Prompt(Set_Write_Permission)
+
+; Alterar Coordenador Engenharia e Obras - Permitir 6/1 e 6/3
+groupArr := ["visionsistemas\" contNum " - Coordenador Engenharia", "visionsistemas\" contNum " - Coordenador Obras"]
+theDir := "6 - Suprimentos\1 - Controle de Compras"
+setPermArr := []
+
+for k, theGroup in groupArr
+	setPermArr[k] := "icacls """ defaultDir "\" folderName "\" theDir """ /grant """ theGroup ":(OI)(CI)M"""
+
+Run_With_Prompt(setPermArr)
+
+theDir := "6 - Suprimentos\3 - Pedidos de Compras"
+
+for k, theGroup in groupArr
+	setPermArr[k] := "icacls """ defaultDir "\" folderName "\" theDir """ /grant """ theGroup ":(OI)(CI)M"""
+
+Run_With_Prompt(setPermArr)
+
+ExitApp
+
+GuiClose:
+ExitApp
+
+Enter::gosub Btn_CreateFolder
+Esc::ExitApp
+
+;~ ================= Tela Carregando =======================
+Please_Wait:
+Gui PW:Submit, NoHide
+GuiControlGet theText, PW:, Txt_Wait
+StringReplace theText, theText, .,, All
+StringReplace theText, theText, `r`n,, All
+
+theText .= "`r`n"
+
+Loop % 3 - dotCount
+	theText .= "."
+
+dotCount--
+
+if dotCount < 0
+	dotCount := 3
+
+GuiControl PW:Text, Txt_Wait, %theText%
+return
+;~ ==================FIM Tela Carregando ========================
