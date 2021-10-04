@@ -1,4 +1,5 @@
 import os
+import re
 
 class Contrato:
   def __init__(self, numeroContrato, nomeConcessionaria):
@@ -18,7 +19,7 @@ def makeContratos(range1, range2):
   pastas = os.listdir('.')
   contratos = []
   for pasta in pastas:
-    if os.path.isdir(pasta) and not pasta == '.git':
+    if contratoValidator(pasta):
       numeroContrato = pasta[0:5]
       nomeConcessionaria = pasta[7:len(pasta)+1]
       contrato  = Contrato(numeroContrato, nomeConcessionaria)
@@ -32,6 +33,25 @@ def testMakeGroup(numeroContrato):
   contratos = makeContratos(numeroContrato, numeroContrato)
   makeGroup(contratos)
 
+#adiciona as permissões de determinado range
+def grantPermissions(range1, range2):
+  newGroups = ['VO Saude Seg Obra', 'VO Almoxarifado Obra', 'VO Administrativo Obra', 'VO Planejamento Obra']
+  existingGroups = ["VO - Equipe de Apoio", "VO - Amoxarifado de Apoio"]
+  contratos = makeContratos(range1, range2)
+  folderpath = os.getcwd()
+  for contrato in contratos:
+    folderpath += f'\{contrato.numero} - {contrato.nomeConcessionaria}'
+    for i in range(len(newGroups)):
+      comando  = f'cmd /c "icacls {folderpath} /inheritance:e /grant:r "{contrato.numero} - {newGroups[i]}:(OI)(CI)M"'
+      os.system(comando)
+    for j in range(len(existingGroups)):
+      comando = f'cmd /c "icacls {folderpath} /inheritance:e /grant:r "{existingGroups[j]}:(OI)(CI)M"'
+      os.system(comando)
+
+def contratoValidator(contrato):
+  if re.fullmatch('[0-9]{4} - [A-zÀ-ÿ]*', contrato):
+    return True
+  return False
 
 def main(range1, range2):
   while True:
