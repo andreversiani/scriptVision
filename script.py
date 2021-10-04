@@ -45,11 +45,11 @@ def grantPermissions(range1, range2):
   for contrato in contratos:
     folderpath += f'\{contrato.numero} - {contrato.nomeConcessionaria}'
     for i in range(len(newGroups)):
-      comando  = f'cmd /c "icacls {folderpath} /inheritance:e /grant:r "{contrato.numero} - {newGroups[i]}:(OI)(CI)M"'
+      comando  = f'cmd /c "icacls {folderpath} /inheritance:e /grant:r "visionsistemas\{contrato.numero} - {newGroups[i]}:(OI)(CI)M"'
       os.system(comando)
       print(f'Permissão Garantida: {contrato.numero} - {newGroups[i]}')
     for j in range(len(existingGroups)):
-      comando = f'cmd /c "icacls {folderpath} /inheritance:e /grant:r "{existingGroups[j]}:(OI)(CI)M"'
+      comando = f'cmd /c "icacls {folderpath} /inheritance:e /grant:r "visionsistemas\{existingGroups[j]}:(OI)(CI)M"'
       os.system(comando)
       print(f'Permissão Garantida: {contrato.numero} - {existingGroups[j]}')
 
